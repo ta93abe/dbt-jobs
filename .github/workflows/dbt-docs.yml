@@ -53,7 +53,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup dbt
-        uses: ta93abe/dbt-runner/actions/setup@main
+        uses: ta93abe/dbt-actions/actions/setup@main
         with:
           dbt-adapter: ${{ inputs.dbt-adapter }}
           dbt-version: ${{ inputs.dbt-version }}
@@ -62,14 +62,14 @@ jobs:
           project-dir: ${{ inputs.project-dir }}
 
       - name: dbt deps
-        uses: ta93abe/dbt-runner/actions/run@main
+        uses: ta93abe/dbt-actions/actions/run@main
         with:
           command: dbt deps
           project-dir: ${{ inputs.project-dir }}
           target: ${{ inputs.target }}
 
       - name: dbt docs generate
-        uses: ta93abe/dbt-runner/actions/run@main
+        uses: ta93abe/dbt-actions/actions/run@main
         with:
           command: dbt docs generate
           project-dir: ${{ inputs.project-dir }}

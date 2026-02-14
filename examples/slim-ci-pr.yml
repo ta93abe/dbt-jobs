@@ -15,7 +15,7 @@ jobs:
   # (This would be in a separate workflow triggered on push to main)
   #
   # dbt-full:
-  #   uses: ta93abe/dbt-runner/.github/workflows/dbt-ci.yml@v1
+  #   uses: ta93abe/dbt-actions/.github/workflows/dbt-ci.yml@v1
   #   with:
   #     dbt-adapter: dbt-bigquery
   #     upload-artifacts: true
@@ -24,7 +24,7 @@ jobs:
 
   # Slim CI on PRs
   dbt-slim:
-    uses: ta93abe/dbt-runner/.github/workflows/dbt-slim-ci.yml@v1
+    uses: ta93abe/dbt-actions/.github/workflows/dbt-slim-ci.yml@v1
     with:
       dbt-adapter: dbt-bigquery
       post-pr-comment: true

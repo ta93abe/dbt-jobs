@@ -1,4 +1,4 @@
-# Example: BigQuery CI with dbt-runner
+# Example: BigQuery CI with dbt-actions
 name: dbt CI (BigQuery)
 
 on:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   dbt:
-    uses: ta93abe/dbt-runner/.github/workflows/dbt-ci.yml@v1
+    uses: ta93abe/dbt-actions/.github/workflows/dbt-ci.yml@v1
     with:
       dbt-adapter: dbt-bigquery
       upload-artifacts: true

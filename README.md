@@ -1,4 +1,4 @@
-# dbt-runner
+# dbt-actions
 
 GitHub Actions package for running dbt in CI/CD pipelines. Provides composite actions and reusable workflows for any dbt adapter.
 
@@ -9,7 +9,7 @@ Add dbt CI to your repository in 3 lines:
 ```yaml
 jobs:
   dbt:
-    uses: ta93abe/dbt-runner/.github/workflows/dbt-ci.yml@v1
+    uses: ta93abe/dbt-actions/.github/workflows/dbt-ci.yml@v1
     with:
       dbt-adapter: dbt-bigquery
     secrets:
@@ -23,7 +23,7 @@ jobs:
 Sets up Python, dbt-core, and a dbt adapter.
 
 ```yaml
-- uses: ta93abe/dbt-runner/actions/setup@v1
+- uses: ta93abe/dbt-actions/actions/setup@v1
   with:
     dbt-adapter: dbt-bigquery
     dbt-version: "1.8.0"        # optional: resolved from pyproject.toml or latest
@@ -60,7 +60,7 @@ Sets up Python, dbt-core, and a dbt adapter.
 Executes a dbt command with automatic `--profiles-dir` and `--target` injection.
 
 ```yaml
-- uses: ta93abe/dbt-runner/actions/run@v1
+- uses: ta93abe/dbt-actions/actions/run@v1
   with:
     command: dbt build --select tag:critical
     target: ci              # optional
@@ -91,7 +91,7 @@ Checkout -> Setup -> deps -> build -> (docs) -> artifact upload.
 ```yaml
 jobs:
   dbt:
-    uses: ta93abe/dbt-runner/.github/workflows/dbt-ci.yml@v1
+    uses: ta93abe/dbt-actions/.github/workflows/dbt-ci.yml@v1
     with:
       dbt-adapter: dbt-bigquery
       upload-artifacts: true    # save manifest for Slim CI
@@ -117,7 +117,7 @@ Runs `dbt build --select state:modified+` using production manifest. Falls back 
 ```yaml
 jobs:
   dbt:
-    uses: ta93abe/dbt-runner/.github/workflows/dbt-slim-ci.yml@v1
+    uses: ta93abe/dbt-actions/.github/workflows/dbt-slim-ci.yml@v1
     with:
       dbt-adapter: dbt-bigquery
       post-pr-comment: true
@@ -149,7 +149,7 @@ Generates dbt docs and optionally deploys to GitHub Pages.
 ```yaml
 jobs:
   docs:
-    uses: ta93abe/dbt-runner/.github/workflows/dbt-docs.yml@v1
+    uses: ta93abe/dbt-actions/.github/workflows/dbt-docs.yml@v1
     with:
       dbt-adapter: dbt-bigquery
       deploy-to-gh-pages: true

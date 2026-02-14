@@ -1,4 +1,4 @@
-# Example: Postgres CI with dbt-runner (using service container)
+# Example: Postgres CI with dbt-actions (using service container)
 name: dbt CI (Postgres)
 
 on:
@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup dbt
-        uses: ta93abe/dbt-runner/actions/setup@v1
+        uses: ta93abe/dbt-actions/actions/setup@v1
         with:
           dbt-adapter: dbt-postgres
           profiles-yml: |
@@ -46,11 +46,11 @@ jobs:
                   schema: dbt_ci
 
       - name: dbt deps
-        uses: ta93abe/dbt-runner/actions/run@v1
+        uses: ta93abe/dbt-actions/actions/run@v1
         with:
           command: dbt deps
 
       - name: dbt build
-        uses: ta93abe/dbt-runner/actions/run@v1
+        uses: ta93abe/dbt-actions/actions/run@v1
         with:
           command: dbt build
