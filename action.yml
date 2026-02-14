@@ -1,0 +1,329 @@
+name: "dbt Job"
+description: "Run dbt CI / merge / deploy jobs as a composite action"
+
+inputs:
+  type:
+    description: "Job type: ci, merge, or deploy"
+    required: true
+  adapter:
+    description: "dbt adapter name (e.g. snowflake, bigquery). 'dbt-' prefix is added automatically."
+    required: true
+  command:
+    description: "dbt commands to run (multi-line supported)"
+    required: true
+  project-dir:
+    description: "Path to the dbt project root"
+    required: false
+    default: "."
+  profile-dir:
+    description: "Directory containing profiles.yml"
+    required: false
+    default: "."
+  deferral:
+    description: "Branch to fetch production manifest from"
+    required: false
+    default: ""
+  target:
+    description: "dbt target to use"
+    required: false
+    default: ""
+  run-timeout:
+    description: "Timeout in seconds per command (0 = unlimited)"
+    required: false
+    default: "0"
+  dbt-version:
+    description: "dbt-core version (empty or 'latest' = auto-resolve)"
+    required: false
+    default: ""
+  threads:
+    description: "Number of dbt threads"
+    required: false
+    default: ""
+  generate-docs:
+    description: "Run 'dbt docs generate'"
+    required: false
+    default: "false"
+  source-freshness:
+    description: "Run 'dbt source freshness'"
+    required: false
+    default: "false"
+  post-pr-comment:
+    description: "Post build results as PR comment (ci only)"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    # ---- Step 1: Validate type ----
+    - name: Validate type
+      shell: bash
+      run: |
+        type="${{ inputs.type }}"
+        if [[ "$type" != "ci" && "$type" != "merge" && "$type" != "deploy" ]]; then
+          echo "::error::Invalid type '${type}'. Must be one of: ci, merge, deploy"
+          exit 1
+        fi
+
+    # ---- Step 2: Setup dbt ----
+    - name: Setup dbt
+      uses: ./actions/setup
+      with:
+        dbt-adapter: dbt-${{ inputs.adapter }}
+        dbt-version: ${{ inputs.dbt-version == 'latest' && '' || inputs.dbt-version }}
+        project-dir: ${{ inputs.project-dir }}
+
+    # ---- Step 3: dbt deps ----
+    - name: dbt deps
+      shell: bash
+      run: >-
+        dbt deps
+        --project-dir "${{ inputs.project-dir }}"
+        --profiles-dir "${{ inputs.profile-dir }}"
+
+    # ---- Step 4: Download manifest ----
+    - name: Download production manifest
+      if: inputs.deferral != ''
+      id: download-manifest
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const fs = require('fs');
+          const branch = '${{ inputs.deferral }}';
+
+          const runs = await github.rest.actions.listWorkflowRunsForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            branch,
+            status: 'success',
+            per_page: 5,
+          });
+
+          let artifact = null;
+          for (const run of runs.data.workflow_runs) {
+            const arts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+            });
+            artifact = arts.data.artifacts.find(a => a.name === 'dbt-artifacts' && !a.expired);
+            if (artifact) break;
+          }
+
+          if (!artifact) {
+            core.warning(`Artifact "dbt-artifacts" not found on branch "${branch}"`);
+            core.setOutput('found', 'false');
+            return;
+          }
+
+          const download = await github.rest.actions.downloadArtifact({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            artifact_id: artifact.id,
+            archive_format: 'zip',
+          });
+
+          fs.writeFileSync('prod-manifest.zip', Buffer.from(download.data));
+          core.setOutput('found', 'true');
+      continue-on-error: true
+
+    # ---- Step 5: Extract manifest ----
+    - name: Extract production manifest
+      if: steps.download-manifest.outputs.found == 'true'
+      shell: bash
+      run: |
+        mkdir -p prod-manifest
+        unzip -o prod-manifest.zip -d prod-manifest
+        rm prod-manifest.zip
+
+    # ---- Step 6: Execute commands ----
+    - name: Execute dbt commands
+      id: dbt-run
+      shell: bash
+      run: |
+        project_dir="${{ inputs.project-dir }}"
+        profile_dir="${{ inputs.profile-dir }}"
+        target="${{ inputs.target }}"
+        threads="${{ inputs.threads }}"
+        manifest_found="${{ steps.download-manifest.outputs.found }}"
+        timeout_sec="${{ inputs.run-timeout }}"
+        type="${{ inputs.type }}"
+
+        build_failed=0
+
+        while IFS= read -r line; do
+          line="$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          [[ -z "$line" || "$line" == \#* ]] && continue
+
+          cmd="$line"
+
+          # Auto-inject flags
+          [[ "$cmd" != *"--profiles-dir"* ]] && cmd="$cmd --profiles-dir $profile_dir"
+          [[ "$cmd" != *"--project-dir"* ]] && cmd="$cmd --project-dir $project_dir"
+          [[ -n "$target" && "$cmd" != *"--target"* ]] && cmd="$cmd --target $target"
+          [[ -n "$threads" && "$cmd" != *"--threads"* ]] && cmd="$cmd --threads $threads"
+          if [[ -n "${{ inputs.deferral }}" && "$manifest_found" == "true" && "$cmd" == *"state:"* && "$cmd" != *"--defer"* ]]; then
+            cmd="$cmd --defer --state ./prod-manifest"
+          fi
+
+          echo "::group::$cmd"
+          if [[ "$timeout_sec" -gt 0 ]] 2>/dev/null; then
+            timeout "$timeout_sec" bash -c "$cmd" && rc=0 || rc=$?
+          else
+            eval "$cmd" && rc=0 || rc=$?
+          fi
+          echo "::endgroup::"
+
+          if [[ $rc -ne 0 ]]; then
+            if [[ "$type" == "ci" ]]; then
+              build_failed=1
+              echo "::warning::Command failed (exit $rc): $cmd"
+            else
+              exit $rc
+            fi
+          fi
+        done <<'EOF'
+        ${{ inputs.command }}
+        EOF
+
+        echo "build-failed=$build_failed" >> "$GITHUB_OUTPUT"
+
+    # ---- Step 7: Source freshness ----
+    - name: dbt source freshness
+      if: inputs.source-freshness == 'true'
+      shell: bash
+      run: |
+        cmd="dbt source freshness"
+        cmd="$cmd --profiles-dir ${{ inputs.profile-dir }}"
+        cmd="$cmd --project-dir ${{ inputs.project-dir }}"
+        [[ -n "${{ inputs.target }}" ]] && cmd="$cmd --target ${{ inputs.target }}"
+        [[ -n "${{ inputs.threads }}" ]] && cmd="$cmd --threads ${{ inputs.threads }}"
+        eval "$cmd"
+
+    # ---- Step 8: Generate docs ----
+    - name: dbt docs generate
+      if: inputs.generate-docs == 'true'
+      shell: bash
+      run: |
+        cmd="dbt docs generate"
+        cmd="$cmd --profiles-dir ${{ inputs.profile-dir }}"
+        cmd="$cmd --project-dir ${{ inputs.project-dir }}"
+        [[ -n "${{ inputs.target }}" ]] && cmd="$cmd --target ${{ inputs.target }}"
+        [[ -n "${{ inputs.threads }}" ]] && cmd="$cmd --threads ${{ inputs.threads }}"
+        eval "$cmd"
+
+    # ---- Step 9: Upload artifacts ----
+    - name: Upload artifacts
+      if: inputs.type == 'merge' || inputs.type == 'deploy'
+      uses: actions/upload-artifact@v6
+      with:
+        name: dbt-artifacts
+        path: |
+          ${{ inputs.project-dir }}/target/manifest.json
+          ${{ inputs.project-dir }}/target/run_results.json
+        retention-days: 90
+
+    # ---- Step 10: PR comment ----
+    - name: Post PR comment
+      if: >-
+        always()
+        && inputs.type == 'ci'
+        && inputs.post-pr-comment == 'true'
+        && github.event_name == 'pull_request'
+        && steps.dbt-run.outcome == 'success'
+      uses: actions/github-script@v8
+      env:
+        DBT_COMMAND: ${{ inputs.command }}
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+
+          const projectDir = '${{ inputs.project-dir }}';
+          const runResultsPath = path.join(projectDir, 'target', 'run_results.json');
+          const buildFailed = '${{ steps.dbt-run.outputs.build-failed }}' === '1';
+          const command = process.env.DBT_COMMAND;
+
+          let body = '';
+
+          if (fs.existsSync(runResultsPath)) {
+            const results = JSON.parse(fs.readFileSync(runResultsPath, 'utf8'));
+            const stats = { pass: 0, warn: 0, error: 0, skip: 0 };
+            for (const r of results.results) {
+              const status = r.status.toLowerCase();
+              if (status === 'pass' || status === 'success') stats.pass++;
+              else if (status === 'warn') stats.warn++;
+              else if (status === 'error' || status === 'fail') stats.error++;
+              else stats.skip++;
+            }
+
+            const icon = stats.error > 0 ? ':x:' : ':white_check_mark:';
+            body = [
+              `## ${icon} dbt Build Results`,
+              '',
+              '**Command:**',
+              '```',
+              command.trim(),
+              '```',
+              '',
+              '| Status | Count |',
+              '|--------|-------|',
+              `| :white_check_mark: Pass | ${stats.pass} |`,
+              `| :warning: Warn | ${stats.warn} |`,
+              `| :x: Error | ${stats.error} |`,
+              `| :fast_forward: Skip | ${stats.skip} |`,
+              '',
+              '<details><summary>Details</summary>',
+              '',
+              '| Node | Status | Time |',
+              '|------|--------|------|',
+              ...results.results.map(r => {
+                const statusIcon = (r.status === 'pass' || r.status === 'success') ? ':white_check_mark:' : r.status === 'error' || r.status === 'fail' ? ':x:' : ':warning:';
+                return `| \`${r.unique_id}\` | ${statusIcon} ${r.status} | ${r.execution_time.toFixed(2)}s |`;
+              }),
+              '',
+              '</details>',
+            ].join('\n');
+          } else {
+            const status = buildFailed ? 'failure' : 'success';
+            body = `## :warning: dbt Build\n\nNo run results found. Build status: **${status}**`;
+          }
+
+          const marker = '<!-- dbt-job -->';
+          body = `${marker}\n${body}`;
+
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const existing = comments.find(c => c.body.startsWith(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+          }
+
+    # ---- Step 11: Check build result ----
+    - name: Check build result
+      if: >-
+        always()
+        && inputs.type == 'ci'
+        && steps.dbt-run.outcome == 'success'
+      shell: bash
+      run: |
+        if [[ "${{ steps.dbt-run.outputs.build-failed }}" == "1" ]]; then
+          echo "::error::dbt build failed"
+          exit 1
+        fi

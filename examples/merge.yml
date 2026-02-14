@@ -24,6 +24,8 @@ jobs:
         with:
           type: merge
           adapter: snowflake
+          project-dir: hello
+          profile-dir: hello
           command: |
             dbt seed --select state:modified+
             dbt run --select state:modified+
@@ -33,5 +35,3 @@ jobs:
           run-timeout: 600
           dbt-version: 1.11
           threads: 8
-        secrets:
-          profiles-yml: ./profiles.yml

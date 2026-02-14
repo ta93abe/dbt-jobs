@@ -24,6 +24,8 @@ jobs:
         with:
           type: ci
           adapter: snowflake
+          project-dir: hello
+          profile-dir: hello
           command: |
             dbt seed -s state:modified+
             dbt test --select state:modified+
@@ -36,5 +38,3 @@ jobs:
           generate-docs: false
           source-freshness: true
           post-pr-comment: true
-        secrets:
-          profiles-yml: ./profiles.yml

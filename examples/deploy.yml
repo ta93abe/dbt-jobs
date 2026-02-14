@@ -16,6 +16,8 @@ jobs:
         with:
           type: deploy
           adapter: snowflake
+          project-dir: .
+          profile-dir: .
           command: |
             dbt build
           source-freshness: true
@@ -25,5 +27,3 @@ jobs:
           deferral: main
           dbt-version: 1.11
           threads: 8
-        secrets:
-          profiles-yml: ./profiles.yml
