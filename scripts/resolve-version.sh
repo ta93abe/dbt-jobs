@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # resolve-version.sh
-# Resolve dbt version from: explicit input > pyproject.toml > latest
+# Resolve dbt version from: explicit input > pyproject.toml > requirements.txt > setup.cfg > setup.py > Pipfile > latest
 #
 # Usage: ./resolve-version.sh [explicit-version] [project-dir]
 
@@ -31,6 +31,58 @@ if [[ -f "$PYPROJECT" ]]; then
       || true)
   fi
 
+  if [[ -n "$version" ]]; then
+    echo "$version"
+    exit 0
+  fi
+fi
+
+# --- requirements.txt ---
+REQUIREMENTS="$PROJECT_DIR/requirements.txt"
+if [[ -f "$REQUIREMENTS" ]]; then
+  version=$(grep -E '^\s*dbt-core\s*[><=!~]' "$REQUIREMENTS" \
+    | head -1 \
+    | sed -E 's/.*dbt-core\s*[><=!~]+\s*([0-9]+\.[0-9]+(\.[0-9]+)?).*/\1/' \
+    || true)
+  if [[ -n "$version" ]]; then
+    echo "$version"
+    exit 0
+  fi
+fi
+
+# --- setup.cfg ---
+SETUP_CFG="$PROJECT_DIR/setup.cfg"
+if [[ -f "$SETUP_CFG" ]]; then
+  version=$(grep -E '^\s*dbt-core\s*[><=!~]' "$SETUP_CFG" \
+    | head -1 \
+    | sed -E 's/.*dbt-core\s*[><=!~]+\s*([0-9]+\.[0-9]+(\.[0-9]+)?).*/\1/' \
+    || true)
+  if [[ -n "$version" ]]; then
+    echo "$version"
+    exit 0
+  fi
+fi
+
+# --- setup.py ---
+SETUP_PY="$PROJECT_DIR/setup.py"
+if [[ -f "$SETUP_PY" ]]; then
+  version=$(grep -E 'dbt-core\s*[><=!~]' "$SETUP_PY" \
+    | head -1 \
+    | sed -E 's/.*dbt-core\s*[><=!~]+\s*([0-9]+\.[0-9]+(\.[0-9]+)?).*/\1/' \
+    || true)
+  if [[ -n "$version" ]]; then
+    echo "$version"
+    exit 0
+  fi
+fi
+
+# --- Pipfile ---
+PIPFILE="$PROJECT_DIR/Pipfile"
+if [[ -f "$PIPFILE" ]]; then
+  version=$(grep -E '^\s*dbt-core\s*=' "$PIPFILE" \
+    | head -1 \
+    | sed -E 's/.*["'\''"][><=!~^]*([0-9]+\.[0-9]+(\.[0-9]+)?).*/\1/' \
+    || true)
   if [[ -n "$version" ]]; then
     echo "$version"
     exit 0
