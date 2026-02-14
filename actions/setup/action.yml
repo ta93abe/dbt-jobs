@@ -1,5 +1,5 @@
 name: "dbt Setup"
-description: "Set up Python, dbt-core, and a dbt adapter with pip caching"
+description: "Set up Python, dbt-core, and a dbt adapter with uv"
 
 inputs:
   dbt-adapter:
@@ -9,10 +9,6 @@ inputs:
     description: "Explicit dbt-core version. If empty, resolved from pyproject.toml or latest."
     required: false
     default: ""
-  python-version:
-    description: "Python version to use"
-    required: false
-    default: "3.11"
   profiles-yml:
     description: "Contents of profiles.yml to write"
     required: false
@@ -34,11 +30,17 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: ${{ inputs.python-version }}
-        cache: "pip"
+    - name: Validate adapter
+      shell: bash
+      run: |
+        adapter="${{ inputs.dbt-adapter }}"
+        if [[ "$adapter" != "dbt-snowflake" ]]; then
+          echo "::error::Unsupported adapter: ${adapter}. Currently only dbt-snowflake is supported."
+          exit 1
+        fi
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
 
     - name: Resolve dbt version
       id: resolve
@@ -57,9 +59,9 @@ runs:
         adapter="${{ inputs.dbt-adapter }}"
 
         if [[ -n "$version" ]]; then
-          pip install "dbt-core==${version}" "${adapter}"
+          uv pip install --system "dbt-core==${version}" "${adapter}"
         else
-          pip install dbt-core "${adapter}"
+          uv pip install --system dbt-core "${adapter}"
         fi
 
         installed_version=$(dbt --version | grep -oP 'installed: \K[0-9]+\.[0-9]+\.[0-9]+' | head -1 || dbt --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)

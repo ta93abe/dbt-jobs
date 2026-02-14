@@ -14,13 +14,16 @@ env:
   SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
   SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
   SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+  SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
 
 jobs:
   sample:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: ta93abe/dbt-job@v1
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: dbt job
+        uses: ta93abe/dbt-job@v1
         with:
           type: ci
           adapter: snowflake
