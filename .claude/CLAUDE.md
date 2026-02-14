@@ -22,13 +22,13 @@ Called as a step via `uses: ta93abe/dbt-job@v1`. Three modes controlled by `type
 
 - **ci**: Runs commands with `set +e` (captures failures), posts PR comment, then propagates failure
 - **merge**: Runs commands with `set -e` (fail-fast), uploads artifacts
-- **deploy**: Same as merge, plus optional docs generation
+- **deploy**: Same as merge, plus optional source freshness checks
 
-11-step pipeline: validate type -> setup dbt -> deps -> download manifest -> extract manifest -> execute commands -> source freshness -> docs generate -> upload artifacts -> PR comment -> check build result
+10-step pipeline: validate type -> override schema (ci) -> setup dbt -> deps -> download manifest -> extract manifest -> execute commands -> source freshness -> upload artifacts -> PR comment -> check build result
 
 ### Internal Actions (under `actions/`)
 
-- **`actions/setup`**: Installs Python + dbt-core + adapter via pip. Resolves dbt version from explicit input > `pyproject.toml` > latest (via `scripts/resolve-version.sh`). Referenced from root action as `uses: ./actions/setup`.
+- **`actions/setup`**: Installs Python + dbt-core + adapter via pip. Resolves dbt version from explicit input > `pyproject.toml` > `requirements.txt` > `setup.cfg` > `setup.py` > `Pipfile` > latest (via `scripts/resolve-version.sh`). Referenced from root action as `uses: ./actions/setup`.
 - **`actions/run`**: Single dbt command executor with `--profiles-dir` and `--target` injection. Not used by root action (root action handles multi-line commands and richer injection itself).
 
 ### Command Auto-Injection (Step 6)

@@ -1,6 +1,10 @@
 name: "dbt Job"
 description: "Run dbt CI / merge / deploy jobs as a composite action"
 
+branding:
+  icon: "play-circle"
+  color: "purple"
+
 inputs:
   type:
     description: "Job type: ci, merge, or deploy"

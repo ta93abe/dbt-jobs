@@ -1,211 +1,91 @@
-# dbt-actions
+# dbt Job
 
-GitHub Actions package for running dbt in CI/CD pipelines. Provides composite actions and reusable workflows for any dbt adapter.
+GitHub Actions composite action for running dbt in CI/CD pipelines. Supports any dbt adapter.
 
 ## Quick Start
 
-Add dbt CI to your repository in 3 lines:
-
 ```yaml
-jobs:
-  dbt:
-    uses: ta93abe/dbt-actions/.github/workflows/dbt-ci.yml@v1
-    with:
-      dbt-adapter: dbt-bigquery
-    secrets:
-      profiles-yml: ${{ secrets.DBT_PROFILES_YML }}
-```
-
-## Actions
-
-### `actions/setup`
-
-Sets up Python, dbt-core, and a dbt adapter.
-
-```yaml
-- uses: ta93abe/dbt-actions/actions/setup@v1
+- uses: ta93abe/dbt-job@v1
   with:
-    dbt-adapter: dbt-bigquery
-    dbt-version: "1.8.0"        # optional: resolved from pyproject.toml or latest
-    python-version: "3.11"       # optional
-    profiles-yml: |              # optional
-      my_project:
-        target: dev
-        outputs:
-          dev:
-            type: bigquery
-            method: service-account
-            project: my-project
-            dataset: dbt_dev
-    project-dir: "."             # optional
+    type: ci
+    adapter: snowflake
+    command: |
+      dbt build --select state:modified+
+    deferral: main
+    post-pr-comment: true
 ```
+
+## Inputs
 
 | Input | Required | Default | Description |
-|---|---|---|---|
-| `dbt-adapter` | yes | - | Adapter pip package name (e.g. `dbt-bigquery`, `dbt-snowflake`) |
-| `dbt-version` | no | `""` | Explicit dbt-core version. Empty = resolve from pyproject.toml or latest |
-| `python-version` | no | `"3.11"` | Python version |
-| `profiles-yml` | no | `""` | Contents of `profiles.yml` to write |
-| `profiles-dir` | no | `"~/.dbt"` | Directory to write `profiles.yml` into |
-| `project-dir` | no | `"."` | dbt project root |
+|-------|----------|---------|-------------|
+| `type` | yes | - | Job type: `ci`, `merge`, or `deploy` |
+| `adapter` | yes | - | dbt adapter short name (e.g. `snowflake`, `bigquery`). `dbt-` prefix is added automatically |
+| `command` | yes | - | dbt commands to run (multi-line supported) |
+| `project-dir` | no | `"."` | Path to the dbt project root |
+| `profile-dir` | no | `"."` | Directory containing `profiles.yml` |
+| `deferral` | no | `""` | Branch to fetch production manifest from |
+| `target` | no | `""` | dbt target to use |
+| `run-timeout` | no | `"0"` | Timeout in seconds per command (0 = unlimited) |
+| `dbt-version` | no | `""` | dbt-core version (empty or `latest` = auto-resolve) |
+| `threads` | no | `""` | Number of dbt threads |
+| `source-freshness` | no | `"false"` | Run `dbt source freshness` |
+| `post-pr-comment` | no | `"false"` | Post build results as PR comment (ci only) |
+| `ci-schema-prefix` | no | `"dbt_pr_job"` | Schema prefix for CI. Sets `SNOWFLAKE_SCHEMA` to `<prefix>_<PR number>` |
 
-**Outputs:**
+## Job Types
 
-| Output | Description |
-|---|---|
-| `dbt-version` | Installed dbt-core version |
+### `ci` - Pull Request Checks
 
-### `actions/run`
+Runs commands with `set +e` to capture all failures, optionally posts a PR comment with build results, then propagates the failure.
 
-Executes a dbt command with automatic `--profiles-dir` and `--target` injection.
+### `merge` - Post-Merge Build
 
-```yaml
-- uses: ta93abe/dbt-actions/actions/run@v1
-  with:
-    command: dbt build --select tag:critical
-    target: ci              # optional
-```
+Runs commands with `set -e` (fail-fast) and uploads `manifest.json` + `run_results.json` as artifacts for Slim CI deferral.
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `command` | yes | - | dbt command to execute |
-| `project-dir` | no | `"."` | dbt project root |
-| `profiles-dir` | no | `"~/.dbt"` | Directory containing `profiles.yml` |
-| `target` | no | `""` | dbt target |
+### `deploy` - Production Deploy
 
-**Outputs:**
+Same as `merge`, plus optional source freshness checks.
 
-| Output | Description |
-|---|---|
-| `result` | `success` or `failure` |
-| `log` | Path to `dbt.log` |
-| `run-results` | Path to `run_results.json` |
-| `manifest` | Path to `manifest.json` |
+## Auto-Injected Flags
 
-## Reusable Workflows
+Each line in the `command` input gets flags injected automatically (if not already present):
 
-### `dbt-ci.yml` - Full CI Pipeline
-
-Checkout -> Setup -> deps -> build -> (docs) -> artifact upload.
-
-```yaml
-jobs:
-  dbt:
-    uses: ta93abe/dbt-actions/.github/workflows/dbt-ci.yml@v1
-    with:
-      dbt-adapter: dbt-bigquery
-      upload-artifacts: true    # save manifest for Slim CI
-    secrets:
-      profiles-yml: ${{ secrets.DBT_PROFILES_YML }}
-```
-
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `dbt-adapter` | yes | - | Adapter package name |
-| `dbt-version` | no | `""` | dbt-core version |
-| `python-version` | no | `"3.11"` | Python version |
-| `project-dir` | no | `"."` | Project root |
-| `target` | no | `""` | dbt target |
-| `upload-artifacts` | no | `false` | Upload manifest.json and run_results.json |
-
-
-### `dbt-slim-ci.yml` - Slim CI (Modified Only)
-
-Runs `dbt build --select state:modified+` using production manifest. Falls back to full build if manifest is not available. Optionally posts results as a PR comment.
-
-```yaml
-jobs:
-  dbt:
-    uses: ta93abe/dbt-actions/.github/workflows/dbt-slim-ci.yml@v1
-    with:
-      dbt-adapter: dbt-bigquery
-      post-pr-comment: true
-    secrets:
-      profiles-yml: ${{ secrets.DBT_PROFILES_YML }}
-```
-
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `dbt-adapter` | yes | - | Adapter package name |
-| `dbt-version` | no | `""` | dbt-core version |
-| `python-version` | no | `"3.11"` | Python version |
-| `project-dir` | no | `"."` | Project root |
-| `target` | no | `""` | dbt target |
-| `prod-artifact-name` | no | `"dbt-artifacts"` | Artifact name for production manifest |
-| `prod-branch` | no | `"main"` | Branch producing production artifacts |
-| `post-pr-comment` | no | `true` | Post build results as PR comment |
-
-**Slim CI Setup:**
-
-1. Enable `upload-artifacts: true` in your `dbt-ci.yml` workflow on the main branch
-2. Use `dbt-slim-ci.yml` for pull request workflows
-3. The first PR run will fall back to full build until artifacts are available
-
-### `dbt-docs.yml` - Documentation
-
-Generates dbt docs and optionally deploys to GitHub Pages.
-
-```yaml
-jobs:
-  docs:
-    uses: ta93abe/dbt-actions/.github/workflows/dbt-docs.yml@v1
-    with:
-      dbt-adapter: dbt-bigquery
-      deploy-to-gh-pages: true
-    secrets:
-      profiles-yml: ${{ secrets.DBT_PROFILES_YML }}
-```
-
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `dbt-adapter` | yes | - | Adapter package name |
-| `deploy-to-gh-pages` | no | `false` | Deploy to GitHub Pages |
-| `gh-pages-branch` | no | `"gh-pages"` | Pages branch name |
-
-## Authentication
-
-Store your `profiles.yml` as a GitHub Actions secret (`DBT_PROFILES_YML`). The secret value should be the full YAML content of your profiles file.
-
-**Example for BigQuery (service account):**
-
-```yaml
-my_project:
-  target: ci
-  outputs:
-    ci:
-      type: bigquery
-      method: service-account
-      project: my-gcp-project
-      dataset: dbt_ci
-      keyfile_json: "{{ env_var('BIGQUERY_KEYFILE_JSON') }}"
-```
-
-You can use `env_var()` in profiles.yml to reference additional secrets set as environment variables.
+- `--profiles-dir` / `--project-dir` -- always
+- `--target` / `--threads` -- if configured
+- `--defer --state ./prod-manifest` -- if `deferral` is set, manifest was downloaded, and command contains `state:`
 
 ## Version Resolution
 
 dbt-core version is resolved in this order:
 
-1. **Explicit input** - `dbt-version: "1.8.0"` in workflow inputs
-2. **pyproject.toml** - Parsed from `[project] dependencies` (PEP 621) or `[tool.poetry.dependencies]` (Poetry)
-3. **Latest** - If no version is specified, the latest release is installed
+1. **Explicit input** -- `dbt-version: "1.8.0"`
+2. **pyproject.toml** -- PEP 621 `dependencies` or Poetry `[tool.poetry.dependencies]`
+3. **requirements.txt** -- `dbt-core>=1.7.0`
+4. **setup.cfg** -- `dbt-core>=1.7.0` in `install_requires`
+5. **setup.py** -- `dbt-core>=1.7.0` in `install_requires`
+6. **Pipfile** -- `dbt-core = "==1.7.0"`
+7. **Latest** -- if no version is found
+
+## Authentication
+
+Set credentials as environment variables at the workflow level. Point `profile-dir` to a `profiles.yml` in your repository that references them via `env_var()`.
+
+```yaml
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+```
 
 ## Examples
 
 See the [`examples/`](./examples) directory for complete workflow configurations:
 
-- [BigQuery CI](./examples/bigquery-ci.yml)
-- [Snowflake CI](./examples/snowflake-ci.yml)
-- [Postgres CI](./examples/postgres-ci.yml) (with service container)
-- [Slim CI for PRs](./examples/slim-ci-pr.yml)
-
-## Design Decisions
-
-- **Adapter name = pip package name** - Specify `dbt-bigquery` directly. No mapping table needed, works with any third-party adapter.
-- **Single `profiles-yml` secret** - Avoids adapter-specific inputs. Future-proof against new adapters.
-- **Separate setup and run actions** - Use setup alone for custom scripts, or compose multiple run steps.
-- **pip-based (no Docker)** - Fast, lightweight, easy to customize.
+- [CI (Pull Request)](./examples/ci.yml) -- Slim CI with PR comment
+- [Merge](./examples/merge.yml) -- Post-merge build with artifact upload
+- [Deploy](./examples/deploy.yml) -- Scheduled production deploy
 
 ## License
 
-[Apache-2.0](./LICENSE)
+[MIT](./LICENSE)
