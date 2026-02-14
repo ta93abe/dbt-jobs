@@ -51,6 +51,10 @@ inputs:
     description: "Post build results as PR comment (ci only)"
     required: false
     default: "false"
+  ci-schema-prefix:
+    description: "Schema prefix for CI. Sets SNOWFLAKE_SCHEMA to <prefix>_<PR number>."
+    required: false
+    default: "dbt_pr_job"
 
 runs:
   using: "composite"
@@ -64,6 +68,20 @@ runs:
           echo "::error::Invalid type '${type}'. Must be one of: ci, merge, deploy"
           exit 1
         fi
+
+    # ---- Step 1.5: Override schema for CI ----
+    - name: Override schema for CI
+      if: inputs.type == 'ci' && inputs.ci-schema-prefix != ''
+      shell: bash
+      run: |
+        pr_number="${{ github.event.pull_request.number }}"
+        if [[ -z "$pr_number" ]]; then
+          echo "::error::ci-schema-prefix requires a pull_request event"
+          exit 1
+        fi
+        schema="${{ inputs.ci-schema-prefix }}_${pr_number}"
+        echo "SNOWFLAKE_SCHEMA=${schema}" >> "$GITHUB_ENV"
+        echo "CI schema: ${schema}"
 
     # ---- Step 2: Setup dbt ----
     - name: Setup dbt
