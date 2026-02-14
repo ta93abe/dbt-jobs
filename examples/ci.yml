@@ -6,6 +6,11 @@ on:
       - reopened
       - synchronize
 
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
 env:
   SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
   SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}

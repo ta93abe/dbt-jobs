@@ -32,10 +32,11 @@ runs:
   steps:
     - name: Validate adapter
       shell: bash
+      env:
+        DBT_ADAPTER: ${{ inputs.dbt-adapter }}
       run: |
-        adapter="${{ inputs.dbt-adapter }}"
-        if [[ "$adapter" != "dbt-snowflake" ]]; then
-          echo "::error::Unsupported adapter: ${adapter}. Currently only dbt-snowflake is supported."
+        if [[ "$DBT_ADAPTER" != "dbt-snowflake" ]]; then
+          echo "::error::Unsupported adapter: ${DBT_ADAPTER}. Currently only dbt-snowflake is supported."
           exit 1
         fi
 
@@ -45,23 +46,27 @@ runs:
     - name: Resolve dbt version
       id: resolve
       shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        DBT_VERSION_INPUT: ${{ inputs.dbt-version }}
+        DBT_PROJECT_DIR: ${{ inputs.project-dir }}
       run: |
-        version=$("${{ github.action_path }}/../../scripts/resolve-version.sh" \
-          "${{ inputs.dbt-version }}" \
-          "${{ inputs.project-dir }}")
+        version=$("${ACTION_PATH}/../../scripts/resolve-version.sh" \
+          "$DBT_VERSION_INPUT" \
+          "$DBT_PROJECT_DIR")
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
     - name: Install dbt
       id: install
       shell: bash
+      env:
+        DBT_VERSION: ${{ steps.resolve.outputs.version }}
+        DBT_ADAPTER: ${{ inputs.dbt-adapter }}
       run: |
-        version="${{ steps.resolve.outputs.version }}"
-        adapter="${{ inputs.dbt-adapter }}"
-
-        if [[ -n "$version" ]]; then
-          uv pip install --system "dbt-core==${version}" "${adapter}"
+        if [[ -n "$DBT_VERSION" ]]; then
+          uv pip install --system "dbt-core==${DBT_VERSION}" "${DBT_ADAPTER}"
         else
-          uv pip install --system dbt-core "${adapter}"
+          uv pip install --system dbt-core "${DBT_ADAPTER}"
         fi
 
         installed_version=$(dbt --version | grep -oP 'installed: \K[0-9]+\.[0-9]+\.[0-9]+' | head -1 || dbt --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
@@ -70,10 +75,11 @@ runs:
     - name: Write profiles.yml
       if: inputs.profiles-yml != ''
       shell: bash
+      env:
+        PROFILES_YML: ${{ inputs.profiles-yml }}
+        PROFILES_DIR: ${{ inputs.profiles-dir }}
       run: |
-        profiles_dir="${{ inputs.profiles-dir }}"
+        profiles_dir="$PROFILES_DIR"
         profiles_dir="${profiles_dir/#\~/$HOME}"
         mkdir -p "$profiles_dir"
-        cat <<'PROFILES_EOF' > "$profiles_dir/profiles.yml"
-        ${{ inputs.profiles-yml }}
-        PROFILES_EOF
+        printf '%s\n' "$PROFILES_YML" > "$profiles_dir/profiles.yml"

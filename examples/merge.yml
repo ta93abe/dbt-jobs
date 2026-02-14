@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+permissions:
+  actions: read
+  contents: read
+
 env:
   SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
   SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}

@@ -39,27 +39,56 @@ runs:
       id: run
       shell: bash
       working-directory: ${{ inputs.project-dir }}
+      env:
+        DBT_CMD: ${{ inputs.command }}
+        DBT_PROFILES_DIR: ${{ inputs.profiles-dir }}
+        DBT_TARGET: ${{ inputs.target }}
+        DBT_PROJECT_DIR: ${{ inputs.project-dir }}
       run: |
-        profiles_dir="${{ inputs.profiles-dir }}"
+        profiles_dir="$DBT_PROFILES_DIR"
         profiles_dir="${profiles_dir/#\~/$HOME}"
 
-        cmd="${{ inputs.command }}"
+        if CMD="$DBT_CMD" DBT_PROFILES_DIR="$profiles_dir" python3 - <<'PY'
+        import os
+        import shlex
+        import subprocess
+        import sys
 
-        # Inject --profiles-dir if not already present
-        if [[ "$cmd" != *"--profiles-dir"* ]]; then
-          cmd="$cmd --profiles-dir $profiles_dir"
-        fi
+        ALLOWED = frozenset({
+            "build", "run", "test", "seed", "snapshot",
+            "compile", "parse", "deps", "ls", "list",
+            "source", "freshness", "show", "retry", "clone",
+        })
 
-        # Inject --target if specified and not already present
-        if [[ -n "${{ inputs.target }}" && "$cmd" != *"--target"* ]]; then
-          cmd="$cmd --target ${{ inputs.target }}"
-        fi
+        cmd = os.environ.get("CMD", "")
+        profiles_dir = os.environ.get("DBT_PROFILES_DIR", "")
+        target = os.environ.get("DBT_TARGET", "")
 
-        echo "::group::dbt command"
-        echo "Running: $cmd"
-        echo "::endgroup::"
+        try:
+            args = shlex.split(cmd, posix=True)
+        except ValueError as exc:
+            print(f"::error::Invalid command syntax: {exc}")
+            sys.exit(2)
 
-        if eval "$cmd"; then
+        if not args or args[0] != "dbt":
+            print("::error::Only dbt commands are allowed.")
+            sys.exit(2)
+
+        subcmd = next((a for a in args[1:] if not a.startswith("-")), None)
+        if subcmd is None or subcmd not in ALLOWED:
+            print(f"::error::Subcommand not allowed: {subcmd or '(none)'}")
+            sys.exit(2)
+
+        if profiles_dir and "--profiles-dir" not in args:
+            args += ["--profiles-dir", profiles_dir]
+        if target and "--target" not in args:
+            args += ["--target", target]
+
+        print(f"Running: {' '.join(shlex.quote(a) for a in args)}")
+        completed = subprocess.run(args, check=False)
+        sys.exit(completed.returncode)
+        PY
+        then
           echo "result=success" >> "$GITHUB_OUTPUT"
         else
           echo "result=failure" >> "$GITHUB_OUTPUT"
@@ -67,7 +96,7 @@ runs:
         fi
 
         # Export artifact paths
-        target_dir="${{ inputs.project-dir }}/target"
+        target_dir="${DBT_PROJECT_DIR}/target"
         if [[ -f "$target_dir/run_results.json" ]]; then
           echo "run-results=$target_dir/run_results.json" >> "$GITHUB_OUTPUT"
         fi

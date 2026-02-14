@@ -62,10 +62,11 @@ runs:
     # ---- Step 1: Validate type ----
     - name: Validate type
       shell: bash
+      env:
+        INPUT_TYPE: ${{ inputs.type }}
       run: |
-        type="${{ inputs.type }}"
-        if [[ "$type" != "ci" && "$type" != "merge" && "$type" != "deploy" ]]; then
-          echo "::error::Invalid type '${type}'. Must be one of: ci, merge, deploy"
+        if [[ "$INPUT_TYPE" != "ci" && "$INPUT_TYPE" != "merge" && "$INPUT_TYPE" != "deploy" ]]; then
+          echo "::error::Invalid type '${INPUT_TYPE}'. Must be one of: ci, merge, deploy"
           exit 1
         fi
 
@@ -73,13 +74,19 @@ runs:
     - name: Override schema for CI
       if: inputs.type == 'ci' && inputs.ci-schema-prefix != ''
       shell: bash
+      env:
+        CI_SCHEMA_PREFIX: ${{ inputs.ci-schema-prefix }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
-        pr_number="${{ github.event.pull_request.number }}"
-        if [[ -z "$pr_number" ]]; then
+        if [[ -z "$PR_NUMBER" ]]; then
           echo "::error::ci-schema-prefix requires a pull_request event"
           exit 1
         fi
-        schema="${{ inputs.ci-schema-prefix }}_${pr_number}"
+        schema="${CI_SCHEMA_PREFIX}_${PR_NUMBER}"
+        if [[ "$schema" == *$'\n'* ]]; then
+          echo "::error::Schema name must not contain newlines"
+          exit 1
+        fi
         echo "SNOWFLAKE_SCHEMA=${schema}" >> "$GITHUB_ENV"
         echo "CI schema: ${schema}"
 
@@ -94,20 +101,23 @@ runs:
     # ---- Step 3: dbt deps ----
     - name: dbt deps
       shell: bash
-      run: >-
-        dbt deps
-        --project-dir "${{ inputs.project-dir }}"
-        --profiles-dir "${{ inputs.profile-dir }}"
+      env:
+        DBT_PROJECT_DIR: ${{ inputs.project-dir }}
+        DBT_PROFILE_DIR: ${{ inputs.profile-dir }}
+      run: |
+        dbt deps --project-dir "$DBT_PROJECT_DIR" --profiles-dir "$DBT_PROFILE_DIR"
 
     # ---- Step 4: Download manifest ----
     - name: Download production manifest
       if: inputs.deferral != ''
       id: download-manifest
       uses: actions/github-script@v8
+      env:
+        DEFERRAL_BRANCH: ${{ inputs.deferral }}
       with:
         script: |
           const fs = require('fs');
-          const branch = '${{ inputs.deferral }}';
+          const branch = process.env.DEFERRAL_BRANCH;
 
           const runs = await github.rest.actions.listWorkflowRunsForRepo({
             owner: context.repo.owner,
@@ -158,51 +168,106 @@ runs:
     - name: Execute dbt commands
       id: dbt-run
       shell: bash
+      env:
+        DBT_COMMAND: ${{ inputs.command }}
+        DBT_PROFILES_DIR: ${{ inputs.profile-dir }}
+        DBT_PROJECT_DIR: ${{ inputs.project-dir }}
+        DBT_TARGET: ${{ inputs.target }}
+        DBT_THREADS: ${{ inputs.threads }}
+        DBT_TIMEOUT: ${{ inputs.run-timeout }}
+        DBT_TYPE: ${{ inputs.type }}
+        DBT_DEFERRAL: ${{ inputs.deferral }}
+        DBT_MANIFEST_FOUND: ${{ steps.download-manifest.outputs.found }}
       run: |
-        project_dir="${{ inputs.project-dir }}"
-        profile_dir="${{ inputs.profile-dir }}"
-        target="${{ inputs.target }}"
-        threads="${{ inputs.threads }}"
-        manifest_found="${{ steps.download-manifest.outputs.found }}"
-        timeout_sec="${{ inputs.run-timeout }}"
-        type="${{ inputs.type }}"
-
         build_failed=0
+
+        run_dbt_command() {
+          local cmd="$1"
+          CMD="$cmd" python3 - <<'PY'
+        import os
+        import shlex
+        import subprocess
+        import sys
+
+        ALLOWED = frozenset({
+            "build", "run", "test", "seed", "snapshot",
+            "compile", "parse", "deps", "ls", "list",
+            "source", "freshness", "show", "retry", "clone",
+        })
+
+        cmd = os.environ.get("CMD", "")
+        timeout_text = os.environ.get("DBT_TIMEOUT", "0")
+        profiles_dir = os.environ.get("DBT_PROFILES_DIR", "")
+        project_dir = os.environ.get("DBT_PROJECT_DIR", "")
+        target = os.environ.get("DBT_TARGET", "")
+        threads = os.environ.get("DBT_THREADS", "")
+        deferral = os.environ.get("DBT_DEFERRAL", "")
+        manifest_found = os.environ.get("DBT_MANIFEST_FOUND", "")
+
+        try:
+            timeout = int(timeout_text)
+        except ValueError:
+            print(f"::error::run-timeout must be an integer, got: {timeout_text}")
+            sys.exit(2)
+
+        if timeout < 0:
+            print(f"::error::run-timeout must be >= 0, got: {timeout}")
+            sys.exit(2)
+
+        try:
+            args = shlex.split(cmd, posix=True)
+        except ValueError as exc:
+            print(f"::error::Invalid command syntax: {exc}")
+            sys.exit(2)
+
+        if not args or args[0] != "dbt":
+            print("::error::Only dbt commands are allowed.")
+            sys.exit(2)
+
+        subcmd = next((a for a in args[1:] if not a.startswith("-")), None)
+        if subcmd is None or subcmd not in ALLOWED:
+            print(f"::error::Subcommand not allowed: {subcmd or '(none)'}")
+            sys.exit(2)
+
+        if profiles_dir and "--profiles-dir" not in args:
+            args += ["--profiles-dir", profiles_dir]
+        if project_dir and "--project-dir" not in args:
+            args += ["--project-dir", project_dir]
+        if target and "--target" not in args:
+            args += ["--target", target]
+        if threads and "--threads" not in args:
+            args += ["--threads", threads]
+        if deferral and manifest_found == "true" and "state:" in cmd and "--defer" not in args:
+            args += ["--defer", "--state", "./prod-manifest"]
+
+        print(f"Running: {' '.join(shlex.quote(a) for a in args)}")
+
+        try:
+            completed = subprocess.run(args, check=False, timeout=(timeout or None))
+            sys.exit(completed.returncode)
+        except subprocess.TimeoutExpired:
+            print(f"::error::Command timed out after {timeout} seconds")
+            sys.exit(124)
+        PY
+        }
 
         while IFS= read -r line; do
           line="$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
           [[ -z "$line" || "$line" == \#* ]] && continue
 
-          cmd="$line"
-
-          # Auto-inject flags
-          [[ "$cmd" != *"--profiles-dir"* ]] && cmd="$cmd --profiles-dir $profile_dir"
-          [[ "$cmd" != *"--project-dir"* ]] && cmd="$cmd --project-dir $project_dir"
-          [[ -n "$target" && "$cmd" != *"--target"* ]] && cmd="$cmd --target $target"
-          [[ -n "$threads" && "$cmd" != *"--threads"* ]] && cmd="$cmd --threads $threads"
-          if [[ -n "${{ inputs.deferral }}" && "$manifest_found" == "true" && "$cmd" == *"state:"* && "$cmd" != *"--defer"* ]]; then
-            cmd="$cmd --defer --state ./prod-manifest"
-          fi
-
-          echo "::group::$cmd"
-          if [[ "$timeout_sec" -gt 0 ]] 2>/dev/null; then
-            timeout "$timeout_sec" bash -c "$cmd" && rc=0 || rc=$?
-          else
-            eval "$cmd" && rc=0 || rc=$?
-          fi
+          echo "::group::$line"
+          run_dbt_command "$line" && rc=0 || rc=$?
           echo "::endgroup::"
 
           if [[ $rc -ne 0 ]]; then
-            if [[ "$type" == "ci" ]]; then
+            if [[ "$DBT_TYPE" == "ci" ]]; then
               build_failed=1
-              echo "::warning::Command failed (exit $rc): $cmd"
+              echo "::warning::Command failed (exit $rc): $line"
             else
               exit $rc
             fi
           fi
-        done <<'EOF'
-        ${{ inputs.command }}
-        EOF
+        done <<< "$DBT_COMMAND"
 
         echo "build-failed=$build_failed" >> "$GITHUB_OUTPUT"
 
@@ -210,13 +275,22 @@ runs:
     - name: dbt source freshness
       if: inputs.source-freshness == 'true'
       shell: bash
+      env:
+        DBT_PROFILE_DIR: ${{ inputs.profile-dir }}
+        DBT_PROJECT_DIR: ${{ inputs.project-dir }}
+        DBT_TARGET: ${{ inputs.target }}
+        DBT_THREADS: ${{ inputs.threads }}
       run: |
-        cmd="dbt source freshness"
-        cmd="$cmd --profiles-dir ${{ inputs.profile-dir }}"
-        cmd="$cmd --project-dir ${{ inputs.project-dir }}"
-        [[ -n "${{ inputs.target }}" ]] && cmd="$cmd --target ${{ inputs.target }}"
-        [[ -n "${{ inputs.threads }}" ]] && cmd="$cmd --threads ${{ inputs.threads }}"
-        eval "$cmd"
+        cmd=(dbt source freshness)
+        cmd+=(--profiles-dir "$DBT_PROFILE_DIR")
+        cmd+=(--project-dir "$DBT_PROJECT_DIR")
+        if [[ -n "$DBT_TARGET" ]]; then
+          cmd+=(--target "$DBT_TARGET")
+        fi
+        if [[ -n "$DBT_THREADS" ]]; then
+          cmd+=(--threads "$DBT_THREADS")
+        fi
+        "${cmd[@]}"
 
     # ---- Step 8: Upload artifacts ----
     - name: Upload artifacts
@@ -240,14 +314,16 @@ runs:
       uses: actions/github-script@v8
       env:
         DBT_COMMAND: ${{ inputs.command }}
+        DBT_PROJECT_DIR: ${{ inputs.project-dir }}
+        BUILD_FAILED: ${{ steps.dbt-run.outputs.build-failed }}
       with:
         script: |
           const fs = require('fs');
           const path = require('path');
 
-          const projectDir = '${{ inputs.project-dir }}';
+          const projectDir = process.env.DBT_PROJECT_DIR;
           const runResultsPath = path.join(projectDir, 'target', 'run_results.json');
-          const buildFailed = '${{ steps.dbt-run.outputs.build-failed }}' === '1';
+          const buildFailed = process.env.BUILD_FAILED === '1';
           const command = process.env.DBT_COMMAND;
 
           let body = '';
@@ -328,8 +404,10 @@ runs:
         && inputs.type == 'ci'
         && steps.dbt-run.outcome == 'success'
       shell: bash
+      env:
+        BUILD_FAILED: ${{ steps.dbt-run.outputs.build-failed }}
       run: |
-        if [[ "${{ steps.dbt-run.outputs.build-failed }}" == "1" ]]; then
+        if [[ "$BUILD_FAILED" == "1" ]]; then
           echo "::error::dbt build failed"
           exit 1
         fi
