@@ -1,0 +1,56 @@
+# Example: Postgres CI with dbt-runner (using service container)
+name: dbt CI (Postgres)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dbt:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dbt
+          POSTGRES_PASSWORD: dbt
+          POSTGRES_DB: dbt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup dbt
+        uses: ta93abe/dbt-runner/actions/setup@v1
+        with:
+          dbt-adapter: dbt-postgres
+          profiles-yml: |
+            my_project:
+              target: ci
+              outputs:
+                ci:
+                  type: postgres
+                  host: localhost
+                  port: 5432
+                  user: dbt
+                  pass: dbt
+                  dbname: dbt
+                  schema: dbt_ci
+
+      - name: dbt deps
+        uses: ta93abe/dbt-runner/actions/run@v1
+        with:
+          command: dbt deps
+
+      - name: dbt build
+        uses: ta93abe/dbt-runner/actions/run@v1
+        with:
+          command: dbt build

@@ -1,0 +1,77 @@
+name: "dbt Setup"
+description: "Set up Python, dbt-core, and a dbt adapter with pip caching"
+
+inputs:
+  dbt-adapter:
+    description: "dbt adapter package name (e.g. dbt-bigquery, dbt-snowflake, dbt-postgres)"
+    required: true
+  dbt-version:
+    description: "Explicit dbt-core version. If empty, resolved from pyproject.toml or latest."
+    required: false
+    default: ""
+  python-version:
+    description: "Python version to use"
+    required: false
+    default: "3.11"
+  profiles-yml:
+    description: "Contents of profiles.yml to write"
+    required: false
+    default: ""
+  profiles-dir:
+    description: "Directory to write profiles.yml into"
+    required: false
+    default: "~/.dbt"
+  project-dir:
+    description: "Path to the dbt project root"
+    required: false
+    default: "."
+
+outputs:
+  dbt-version:
+    description: "Installed dbt-core version"
+    value: ${{ steps.install.outputs.dbt-version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: "pip"
+
+    - name: Resolve dbt version
+      id: resolve
+      shell: bash
+      run: |
+        version=$("${{ github.action_path }}/../../scripts/resolve-version.sh" \
+          "${{ inputs.dbt-version }}" \
+          "${{ inputs.project-dir }}")
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Install dbt
+      id: install
+      shell: bash
+      run: |
+        version="${{ steps.resolve.outputs.version }}"
+        adapter="${{ inputs.dbt-adapter }}"
+
+        if [[ -n "$version" ]]; then
+          pip install "dbt-core==${version}" "${adapter}"
+        else
+          pip install dbt-core "${adapter}"
+        fi
+
+        installed_version=$(dbt --version | grep -oP 'installed: \K[0-9]+\.[0-9]+\.[0-9]+' | head -1 || dbt --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        echo "dbt-version=${installed_version}" >> "$GITHUB_OUTPUT"
+
+    - name: Write profiles.yml
+      if: inputs.profiles-yml != ''
+      shell: bash
+      run: |
+        profiles_dir="${{ inputs.profiles-dir }}"
+        profiles_dir="${profiles_dir/#\~/$HOME}"
+        mkdir -p "$profiles_dir"
+        cat <<'PROFILES_EOF' > "$profiles_dir/profiles.yml"
+        ${{ inputs.profiles-yml }}
+        PROFILES_EOF

@@ -1,0 +1,30 @@
+# Example: Snowflake CI with dbt-runner
+name: dbt CI (Snowflake)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dbt:
+    uses: ta93abe/dbt-runner/.github/workflows/dbt-ci.yml@v1
+    with:
+      dbt-adapter: dbt-snowflake
+      upload-artifacts: true
+    secrets:
+      profiles-yml: ${{ secrets.DBT_PROFILES_YML }}
+      # Example profiles.yml for Snowflake:
+      # my_project:
+      #   target: dev
+      #   outputs:
+      #     dev:
+      #       type: snowflake
+      #       account: my-account.us-east-1
+      #       user: "{{ env_var('SNOWFLAKE_USER') }}"
+      #       password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      #       role: TRANSFORMER
+      #       database: ANALYTICS
+      #       warehouse: TRANSFORMING
+      #       schema: dbt_dev

@@ -1,0 +1,32 @@
+# Example: Slim CI for pull requests with PR comment
+name: dbt Slim CI
+
+on:
+  pull_request:
+    branches: [main]
+
+# Required permissions for PR comments
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Full CI on main branch to produce artifacts
+  # (This would be in a separate workflow triggered on push to main)
+  #
+  # dbt-full:
+  #   uses: ta93abe/dbt-runner/.github/workflows/dbt-ci.yml@v1
+  #   with:
+  #     dbt-adapter: dbt-bigquery
+  #     upload-artifacts: true
+  #   secrets:
+  #     profiles-yml: ${{ secrets.DBT_PROFILES_YML }}
+
+  # Slim CI on PRs
+  dbt-slim:
+    uses: ta93abe/dbt-runner/.github/workflows/dbt-slim-ci.yml@v1
+    with:
+      dbt-adapter: dbt-bigquery
+      post-pr-comment: true
+    secrets:
+      profiles-yml: ${{ secrets.DBT_PROFILES_YML }}

@@ -1,0 +1,27 @@
+# Example: BigQuery CI with dbt-runner
+name: dbt CI (BigQuery)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dbt:
+    uses: ta93abe/dbt-runner/.github/workflows/dbt-ci.yml@v1
+    with:
+      dbt-adapter: dbt-bigquery
+      upload-artifacts: true
+    secrets:
+      profiles-yml: ${{ secrets.DBT_PROFILES_YML }}
+      # Example profiles.yml for BigQuery:
+      # my_project:
+      #   target: dev
+      #   outputs:
+      #     dev:
+      #       type: bigquery
+      #       method: service-account
+      #       project: my-gcp-project
+      #       dataset: dbt_dev
+      #       keyfile_json: '{{ env_var("BIGQUERY_KEYFILE_JSON") }}'

@@ -1,0 +1,79 @@
+name: "dbt Run"
+description: "Execute a dbt command with automatic profiles-dir and target injection"
+
+inputs:
+  command:
+    description: "dbt command to execute (e.g. 'dbt build', 'dbt test --select tag:critical')"
+    required: true
+  project-dir:
+    description: "Path to the dbt project root"
+    required: false
+    default: "."
+  profiles-dir:
+    description: "Directory containing profiles.yml"
+    required: false
+    default: "~/.dbt"
+  target:
+    description: "dbt target to use"
+    required: false
+    default: ""
+
+outputs:
+  result:
+    description: "Command result: success or failure"
+    value: ${{ steps.run.outputs.result }}
+  log:
+    description: "Path to the dbt log file"
+    value: ${{ steps.run.outputs.log }}
+  run-results:
+    description: "Path to run_results.json if generated"
+    value: ${{ steps.run.outputs.run-results }}
+  manifest:
+    description: "Path to manifest.json if generated"
+    value: ${{ steps.run.outputs.manifest }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run dbt command
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.project-dir }}
+      run: |
+        profiles_dir="${{ inputs.profiles-dir }}"
+        profiles_dir="${profiles_dir/#\~/$HOME}"
+
+        cmd="${{ inputs.command }}"
+
+        # Inject --profiles-dir if not already present
+        if [[ "$cmd" != *"--profiles-dir"* ]]; then
+          cmd="$cmd --profiles-dir $profiles_dir"
+        fi
+
+        # Inject --target if specified and not already present
+        if [[ -n "${{ inputs.target }}" && "$cmd" != *"--target"* ]]; then
+          cmd="$cmd --target ${{ inputs.target }}"
+        fi
+
+        echo "::group::dbt command"
+        echo "Running: $cmd"
+        echo "::endgroup::"
+
+        if eval "$cmd"; then
+          echo "result=success" >> "$GITHUB_OUTPUT"
+        else
+          echo "result=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        # Export artifact paths
+        target_dir="${{ inputs.project-dir }}/target"
+        if [[ -f "$target_dir/run_results.json" ]]; then
+          echo "run-results=$target_dir/run_results.json" >> "$GITHUB_OUTPUT"
+        fi
+        if [[ -f "$target_dir/manifest.json" ]]; then
+          echo "manifest=$target_dir/manifest.json" >> "$GITHUB_OUTPUT"
+        fi
+        if [[ -d "$target_dir" ]]; then
+          echo "log=$target_dir/dbt.log" >> "$GITHUB_OUTPUT"
+        fi
