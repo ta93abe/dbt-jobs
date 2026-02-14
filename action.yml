@@ -39,10 +39,6 @@ inputs:
     description: "Number of dbt threads"
     required: false
     default: ""
-  generate-docs:
-    description: "Run 'dbt docs generate'"
-    required: false
-    default: "false"
   source-freshness:
     description: "Run 'dbt source freshness'"
     required: false
@@ -218,19 +214,7 @@ runs:
         [[ -n "${{ inputs.threads }}" ]] && cmd="$cmd --threads ${{ inputs.threads }}"
         eval "$cmd"
 
-    # ---- Step 8: Generate docs ----
-    - name: dbt docs generate
-      if: inputs.generate-docs == 'true'
-      shell: bash
-      run: |
-        cmd="dbt docs generate"
-        cmd="$cmd --profiles-dir ${{ inputs.profile-dir }}"
-        cmd="$cmd --project-dir ${{ inputs.project-dir }}"
-        [[ -n "${{ inputs.target }}" ]] && cmd="$cmd --target ${{ inputs.target }}"
-        [[ -n "${{ inputs.threads }}" ]] && cmd="$cmd --threads ${{ inputs.threads }}"
-        eval "$cmd"
-
-    # ---- Step 9: Upload artifacts ----
+    # ---- Step 8: Upload artifacts ----
     - name: Upload artifacts
       if: inputs.type == 'merge' || inputs.type == 'deploy'
       uses: actions/upload-artifact@v6

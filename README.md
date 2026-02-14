@@ -95,7 +95,6 @@ jobs:
     with:
       dbt-adapter: dbt-bigquery
       upload-artifacts: true    # save manifest for Slim CI
-      generate-docs: false      # optional: run dbt docs generate
     secrets:
       profiles-yml: ${{ secrets.DBT_PROFILES_YML }}
 ```
@@ -108,7 +107,7 @@ jobs:
 | `project-dir` | no | `"."` | Project root |
 | `target` | no | `""` | dbt target |
 | `upload-artifacts` | no | `false` | Upload manifest.json and run_results.json |
-| `generate-docs` | no | `false` | Run `dbt docs generate` |
+
 
 ### `dbt-slim-ci.yml` - Slim CI (Modified Only)
 

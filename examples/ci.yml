@@ -37,6 +37,5 @@ jobs:
           target: default
           dbt-version: latest
           threads: 4
-          generate-docs: false
           source-freshness: true
           post-pr-comment: true

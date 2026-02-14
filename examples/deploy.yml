@@ -33,7 +33,6 @@ jobs:
           command: |
             dbt build
           source-freshness: true
-          generate-docs: true
           target: prod
           run-timeout: 600
           deferral: main
