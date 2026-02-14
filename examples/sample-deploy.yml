@@ -1,0 +1,29 @@
+name: sample
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ta93abe/dbt-job@v1
+        with:
+          type: deploy
+          adapter: snowflake
+          command: |
+            dbt build
+          source-freshness: true
+          generate-docs: true
+          target: prod
+          run-timeout: 600
+          deferral: main
+          dbt-version: 1.11
+          threads: 8
+        secrets:
+          profiles-yml: ./profiles.yml

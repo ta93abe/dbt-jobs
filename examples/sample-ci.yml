@@ -1,0 +1,40 @@
+name: sample
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+  SNOWFLAKE_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
+  SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+  SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+  SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ta93abe/dbt-job@v1
+        with:
+          type: ci
+          adapter: snowflake
+          command: |
+            dbt seed -s state:modified+
+            dbt test --select state:modified+
+            dbt run --select state:modified+
+          deferral: main
+          run-timeout: 1000
+          target: default
+          dbt-version: latest
+          threads: 4
+          generate-docs: false
+          source-freshness: true
+          post-pr-comment: true
+        secrets:
+          profiles-yml: ./profiles.yml

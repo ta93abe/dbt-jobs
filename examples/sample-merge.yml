@@ -1,0 +1,37 @@
+name: sample
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+  SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+  SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+
+jobs:
+  sample:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ta93abe/dbt-job@v1
+        with:
+          type: merge
+          adapter: snowflake
+          command: |
+            dbt seed --select state:modified+
+            dbt run --select state:modified+
+            dbt test --select state:modified+
+          deferral: main
+          target: prod
+          run-timeout: 600
+          dbt-version: 1.11
+          threads: 8
+        secrets:
+          profiles-yml: ./profiles.yml
