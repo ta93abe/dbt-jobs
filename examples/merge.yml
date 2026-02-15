@@ -28,7 +28,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
       - name: dbt job
-        uses: ta93abe/dbt-job@v1
+        uses: ta93abe/dbt-jobs@v1
         with:
           type: merge
           adapter: snowflake
