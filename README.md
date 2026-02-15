@@ -1,6 +1,6 @@
 # dbt Job
 
-GitHub Actions composite action for running dbt in CI/CD pipelines. Supports any dbt adapter.
+GitHub Actions composite action for running dbt in CI/CD pipelines. Currently supports Snowflake and is structured to add more adapters incrementally.
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ GitHub Actions composite action for running dbt in CI/CD pipelines. Supports any
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `type` | yes | - | Job type: `ci`, `merge`, or `deploy` |
-| `adapter` | yes | - | dbt adapter short name (e.g. `snowflake`, `bigquery`). `dbt-` prefix is added automatically |
+| `adapter` | yes | - | dbt adapter short name (currently `snowflake`) |
 | `command` | yes | - | dbt commands to run (multi-line supported) |
 | `project-dir` | no | `"."` | Path to the dbt project root |
 | `profile-dir` | no | `"."` | Directory containing `profiles.yml` |
@@ -66,6 +66,11 @@ dbt-core version is resolved in this order:
 5. **setup.py** -- `dbt-core>=1.7.0` in `install_requires`
 6. **Pipfile** -- `dbt-core = "==1.7.0"`
 7. **Latest** -- if no version is found
+
+## Adapter Handling
+
+Adapter setup is centralized in `actions/setup/action.yml`.
+When adding a new adapter, extend the adapter normalization/validation case and map it to the correct package name.
 
 ## Authentication
 

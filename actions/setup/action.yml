@@ -2,8 +2,8 @@ name: "dbt Setup"
 description: "Set up Python, dbt-core, and a dbt adapter with uv"
 
 inputs:
-  dbt-adapter:
-    description: "dbt adapter package name (e.g. dbt-bigquery, dbt-snowflake, dbt-postgres)"
+  adapter:
+    description: "dbt adapter short name (e.g. snowflake)"
     required: true
   dbt-version:
     description: "Explicit dbt-core version. If empty, resolved from pyproject.toml or latest."
@@ -30,15 +30,25 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Validate adapter
+    - name: Validate and normalize adapter
+      id: normalize-adapter
       shell: bash
       env:
-        DBT_ADAPTER: ${{ inputs.dbt-adapter }}
+        INPUT_ADAPTER: ${{ inputs.adapter }}
       run: |
-        if [[ "$DBT_ADAPTER" != "dbt-snowflake" ]]; then
-          echo "::error::Unsupported adapter: ${DBT_ADAPTER}. Currently only dbt-snowflake is supported."
-          exit 1
-        fi
+        adapter="$INPUT_ADAPTER"
+        adapter="${adapter#dbt-}"
+        adapter="${adapter,,}"
+
+        case "$adapter" in
+          snowflake)
+            echo "adapter_package=dbt-snowflake" >> "$GITHUB_OUTPUT"
+            ;;
+          *)
+            echo "::error::Unsupported adapter: ${INPUT_ADAPTER}. Supported adapters: snowflake"
+            exit 1
+            ;;
+        esac
 
     - name: Install uv
       uses: astral-sh/setup-uv@v7
@@ -61,12 +71,12 @@ runs:
       shell: bash
       env:
         DBT_VERSION: ${{ steps.resolve.outputs.version }}
-        DBT_ADAPTER: ${{ inputs.dbt-adapter }}
+        DBT_ADAPTER_PACKAGE: ${{ steps.normalize-adapter.outputs.adapter_package }}
       run: |
         if [[ -n "$DBT_VERSION" ]]; then
-          uv pip install --system "dbt-core==${DBT_VERSION}" "${DBT_ADAPTER}"
+          uv pip install --system "dbt-core==${DBT_VERSION}" "${DBT_ADAPTER_PACKAGE}"
         else
-          uv pip install --system dbt-core "${DBT_ADAPTER}"
+          uv pip install --system dbt-core "${DBT_ADAPTER_PACKAGE}"
         fi
 
         installed_version=$(dbt --version | grep -oP 'installed: \K[0-9]+\.[0-9]+\.[0-9]+' | head -1 || dbt --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)

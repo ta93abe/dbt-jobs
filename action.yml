@@ -10,7 +10,7 @@ inputs:
     description: "Job type: ci, merge, or deploy"
     required: true
   adapter:
-    description: "dbt adapter name (e.g. snowflake, bigquery). 'dbt-' prefix is added automatically."
+    description: "dbt adapter short name (currently: snowflake)"
     required: true
   command:
     description: "dbt commands to run (multi-line supported)"
@@ -94,7 +94,7 @@ runs:
     - name: Setup dbt
       uses: ./actions/setup
       with:
-        dbt-adapter: dbt-${{ inputs.adapter }}
+        adapter: ${{ inputs.adapter }}
         dbt-version: ${{ inputs.dbt-version == 'latest' && '' || inputs.dbt-version }}
         project-dir: ${{ inputs.project-dir }}
 
