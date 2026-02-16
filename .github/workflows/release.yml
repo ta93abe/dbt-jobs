@@ -2,44 +2,86 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [main]
 
 permissions:
   contents: write
+  pull-requests: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
-      - name: Validate semver tag
-        id: tag
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Tag '$TAG' is not valid semver (expected vX.Y.Z)"
-            exit 1
-          fi
-          echo "major=${TAG%%.*}" >> "$GITHUB_OUTPUT"
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Lint YAML
         run: npx yaml-lint@1.7.0 action.yml actions/*/action.yml examples/*.yml .github/workflows/*.yml
 
-      - name: Create GitHub Release
+      - name: Get latest semver tag
+        id: latest
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME already exists. Skipping create."
+          TAG=$(gh api "repos/${REPO}/releases/latest" --jq '.tag_name' 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -n1)
+          fi
+          echo "tag=${TAG:-v0.0.0}" >> "$GITHUB_OUTPUT"
+
+      - name: Determine bump type from PR labels
+        id: bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          LABELS=$(gh api "repos/${REPO}/commits/${SHA}/pulls" --jq '.[0].labels[].name' 2>/dev/null || echo "")
+          if echo "$LABELS" | grep -q "^major$"; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$LABELS" | grep -q "^minor$"; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
           else
-            gh release create "$GITHUB_REF_NAME" --generate-notes
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Calculate next version
+        id: next
+        env:
+          CURRENT: ${{ steps.latest.outputs.tag }}
+          BUMP: ${{ steps.bump.outputs.type }}
+        run: |
+          VERSION="${CURRENT#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          echo "tag=v${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_OUTPUT"
+          echo "major=v${MAJOR}" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_TAG: ${{ steps.next.outputs.tag }}
+        run: |
+          if gh release view "$NEXT_TAG" >/dev/null 2>&1; then
+            echo "Release $NEXT_TAG already exists. Skipping."
+          else
+            gh release create "$NEXT_TAG" --generate-notes
           fi
 
       - name: Update major version tag
         env:
-          MAJOR: ${{ steps.tag.outputs.major }}
+          MAJOR: ${{ steps.next.outputs.major }}
         run: |
           git tag -f "$MAJOR"
           git push -f origin "$MAJOR"
