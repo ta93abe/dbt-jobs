@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate semver tag
+        id: tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$TAG' is not valid semver (expected vX.Y.Z)"
+            exit 1
+          fi
+          echo "major=${TAG%%.*}" >> "$GITHUB_OUTPUT"
+
+      - name: Lint YAML
+        run: npx yaml-lint action.yml actions/*/action.yml examples/*.yml .github/workflows/*.yml
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes
+
+      - name: Update major version tag
+        env:
+          MAJOR: ${{ steps.tag.outputs.major }}
+        run: |
+          git tag -f "$MAJOR"
+          git push -f origin "$MAJOR"
