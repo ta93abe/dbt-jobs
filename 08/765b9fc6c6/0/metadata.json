@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "08765b9fc6c6",
+  "session_id": "4a9487bb-ba6a-444a-ae20-cacd10e73d26",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-16T11:24:25.851613Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
+    "docs/plans/2026-02-16-release-cycle-design.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "d5706e1a-a577-45ad-8298-4ff5236a243f",
+  "token_usage": {
+    "input_tokens": 65,
+    "cache_creation_tokens": 89358,
+    "cache_read_tokens": 4235422,
+    "output_tokens": 5735,
+    "api_call_count": 60
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-16T11:24:25.693726Z",
+    "agent_lines": 32,
+    "human_added": 0,
+    "human_modified": 108,
+    "human_removed": 28,
+    "total_committed": 140,
+    "agent_percentage": 22.857142857142858
+  },
+  "transcript_path": ".claude/projects/-Users-ta93abe-Developer-github-com-ta93abe-dbt-jobs/4a9487bb-ba6a-444a-ae20-cacd10e73d26.jsonl"
+}
