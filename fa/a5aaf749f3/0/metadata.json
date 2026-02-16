@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "faa5aaf749f3",
+  "session_id": "204e0ffc-469c-4a6f-a366-b5042682e50a",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-16T13:37:58.860333Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/release.yml"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "a7ee11ce-0b89-4ed9-8d34-14e214e57261",
+  "checkpoint_transcript_start": 436,
+  "transcript_lines_at_start": 436,
+  "token_usage": {
+    "input_tokens": 29,
+    "cache_creation_tokens": 14171,
+    "cache_read_tokens": 3087668,
+    "output_tokens": 1556,
+    "api_call_count": 25
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-16T13:37:58.61663Z",
+    "agent_lines": 2,
+    "human_added": 60,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 62,
+    "agent_percentage": 3.225806451612903
+  },
+  "transcript_path": ".claude/projects/-Users-ta93abe-Developer-github-com-ta93abe-dbt-jobs/204e0ffc-469c-4a6f-a366-b5042682e50a.jsonl"
+}
