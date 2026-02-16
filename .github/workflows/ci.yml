@@ -11,7 +11,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Lint YAML
-        run: npx yaml-lint action.yml actions/*/action.yml examples/*.yml .github/workflows/*.yml
+        run: npx yaml-lint@1.7.0 action.yml actions/*/action.yml examples/*.yml .github/workflows/*.yml

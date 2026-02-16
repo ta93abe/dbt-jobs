@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Lint YAML
-        run: npx yaml-lint action.yml actions/*/action.yml examples/*.yml
+        run: npx yaml-lint action.yml actions/*/action.yml examples/*.yml .github/workflows/*.yml
 ```
 
 **Step 2: Validate the YAML locally**
@@ -86,7 +86,7 @@ jobs:
           echo "major=${TAG%%.*}" >> "$GITHUB_OUTPUT"
 
       - name: Lint YAML
-        run: npx yaml-lint action.yml actions/*/action.yml examples/*.yml
+        run: npx yaml-lint action.yml actions/*/action.yml examples/*.yml .github/workflows/*.yml
 
       - name: Create GitHub Release
         env:

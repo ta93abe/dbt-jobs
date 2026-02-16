@@ -12,7 +12,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate semver tag
         id: tag
@@ -25,7 +25,7 @@ jobs:
           echo "major=${TAG%%.*}" >> "$GITHUB_OUTPUT"
 
       - name: Lint YAML
-        run: npx yaml-lint action.yml actions/*/action.yml examples/*.yml .github/workflows/*.yml
+        run: npx yaml-lint@1.7.0 action.yml actions/*/action.yml examples/*.yml .github/workflows/*.yml
 
       - name: Create GitHub Release
         env:
