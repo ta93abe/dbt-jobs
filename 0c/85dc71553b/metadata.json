@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "0c85dc71553b",
+  "strategy": "manual-commit",
+  "branch": "feat/auto-release",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
+    "docs/plans/2026-02-16-auto-release-design.md",
+    "docs/plans/2026-02-16-auto-release-plan.md",
+    "docs/plans/2026-02-16-release-cycle-design.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0c/85dc71553b/0/metadata.json",
+      "transcript": "/0c/85dc71553b/0/full.jsonl",
+      "context": "/0c/85dc71553b/0/context.md",
+      "content_hash": "/0c/85dc71553b/0/content_hash.txt",
+      "prompt": "/0c/85dc71553b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 66,
+    "cache_creation_tokens": 92739,
+    "cache_read_tokens": 5393522,
+    "output_tokens": 10799,
+    "api_call_count": 59
+  }
+}
