@@ -1,11 +1,11 @@
-# dbt Job
+# dbt Jobs
 
 GitHub Actions composite action for running dbt in CI/CD pipelines. Currently supports Snowflake and is structured to add more adapters incrementally.
 
 ## Quick Start
 
 ```yaml
-- uses: ta93abe/dbt-job@v1
+- uses: ta93abe/dbt-jobs@v1
   with:
     type: ci
     adapter: snowflake

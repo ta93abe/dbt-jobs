@@ -1,4 +1,4 @@
-name: "dbt Job"
+name: "dbt Jobs"
 description: "Run dbt CI / merge / deploy jobs as a composite action"
 
 branding:
@@ -371,7 +371,7 @@ runs:
             body = `## :warning: dbt Build\n\nNo run results found. Build status: **${status}**`;
           }
 
-          const marker = '<!-- dbt-job -->';
+          const marker = '<!-- dbt-jobs -->';
           body = `${marker}\n${body}`;
 
           const { data: comments } = await github.rest.issues.listComments({

@@ -1,0 +1,17 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Lint YAML
+        run: npx yaml-lint@1.7.0 action.yml actions/*/action.yml examples/*.yml .github/workflows/*.yml
