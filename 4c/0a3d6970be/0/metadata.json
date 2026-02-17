@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "4c0a3d6970be",
+  "session_id": "7a7f995b-3954-48a3-bc9d-542d09c8f188",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-17T12:22:38.836867Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "action.yml",
+    "docs/plans/2026-02-17-inline-setup-action.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "0fb0ed93-e055-40b7-9558-41ef83c9c5aa",
+  "token_usage": {
+    "input_tokens": 481,
+    "cache_creation_tokens": 168755,
+    "cache_read_tokens": 3737602,
+    "output_tokens": 6634,
+    "api_call_count": 57
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-17T12:22:38.729247Z",
+    "agent_lines": 51,
+    "human_added": 0,
+    "human_modified": 67,
+    "human_removed": 91,
+    "total_committed": 118,
+    "agent_percentage": 43.22033898305085
+  },
+  "transcript_path": ".claude/projects/-Users-ta93abe-Developer-github-com-ta93abe-dbt-jobs/7a7f995b-3954-48a3-bc9d-542d09c8f188.jsonl"
+}
