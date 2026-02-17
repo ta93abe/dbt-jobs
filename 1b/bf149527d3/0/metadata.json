@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "1bbf149527d3",
+  "session_id": "7a7f995b-3954-48a3-bc9d-542d09c8f188",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-17T12:38:04.536439Z",
+  "branch": "fix/setup-python-for-pep668",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "action.yml",
+    "actions/setup/action.yml"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "c303cdf5-af83-4730-b598-af6cb9df5fef",
+  "checkpoint_transcript_start": 236,
+  "transcript_lines_at_start": 236,
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 14391,
+    "cache_read_tokens": 2702101,
+    "output_tokens": 2658,
+    "api_call_count": 26
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-17T12:38:04.403159Z",
+    "agent_lines": 10,
+    "human_added": 225,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 235,
+    "agent_percentage": 4.25531914893617
+  },
+  "transcript_path": ".claude/projects/-Users-ta93abe-Developer-github-com-ta93abe-dbt-jobs/7a7f995b-3954-48a3-bc9d-542d09c8f188.jsonl"
+}
