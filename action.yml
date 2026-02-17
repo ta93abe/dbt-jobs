@@ -287,8 +287,24 @@ runs:
             args += ["--target", target]
         if threads and "--threads" not in args:
             args += ["--threads", threads]
-        if deferral and manifest_found == "true" and "state:" in cmd and "--defer" not in args:
+        has_state_selector = any("state:" in a for a in args)
+
+        if deferral and manifest_found == "true" and has_state_selector and "--defer" not in args:
             args += ["--defer", "--state", "./prod-manifest"]
+        elif has_state_selector and manifest_found != "true":
+            print("::warning::No production manifest found. Removing state: selectors and running full build.")
+            args = [a for a in args if "state:" not in a]
+            # Clean up empty --select / --exclude flags
+            cleaned = []
+            skip_next = False
+            for i, a in enumerate(args):
+                if skip_next:
+                    skip_next = False
+                    continue
+                if a in ("--select", "--exclude", "-s") and (i + 1 >= len(args) or args[i + 1].startswith("-")):
+                    continue
+                cleaned.append(a)
+            args = cleaned
 
         print(f"Running: {' '.join(shlex.quote(a) for a in args)}")
 
