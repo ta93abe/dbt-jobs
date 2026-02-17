@@ -91,12 +91,57 @@ runs:
         echo "CI schema: ${schema}"
 
     # ---- Step 2: Setup dbt ----
-    - name: Setup dbt
-      uses: ./actions/setup
-      with:
-        adapter: ${{ inputs.adapter }}
-        dbt-version: ${{ inputs.dbt-version == 'latest' && '' || inputs.dbt-version }}
-        project-dir: ${{ inputs.project-dir }}
+    - name: Validate and normalize adapter
+      id: normalize-adapter
+      shell: bash
+      env:
+        INPUT_ADAPTER: ${{ inputs.adapter }}
+      run: |
+        adapter="$INPUT_ADAPTER"
+        adapter="${adapter#dbt-}"
+        adapter="${adapter,,}"
+
+        case "$adapter" in
+          snowflake)
+            echo "adapter_package=dbt-snowflake" >> "$GITHUB_OUTPUT"
+            ;;
+          *)
+            echo "::error::Unsupported adapter: ${INPUT_ADAPTER}. Supported adapters: snowflake"
+            exit 1
+            ;;
+        esac
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Resolve dbt version
+      id: resolve-dbt-version
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        DBT_VERSION_INPUT: ${{ inputs.dbt-version == 'latest' && '' || inputs.dbt-version }}
+        DBT_PROJECT_DIR: ${{ inputs.project-dir }}
+      run: |
+        version=$("${ACTION_PATH}/scripts/resolve-version.sh" \
+          "$DBT_VERSION_INPUT" \
+          "$DBT_PROJECT_DIR")
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Install dbt
+      id: install-dbt
+      shell: bash
+      env:
+        DBT_VERSION: ${{ steps.resolve-dbt-version.outputs.version }}
+        DBT_ADAPTER_PACKAGE: ${{ steps.normalize-adapter.outputs.adapter_package }}
+      run: |
+        if [[ -n "$DBT_VERSION" ]]; then
+          uv pip install --system "dbt-core==${DBT_VERSION}" "${DBT_ADAPTER_PACKAGE}"
+        else
+          uv pip install --system dbt-core "${DBT_ADAPTER_PACKAGE}"
+        fi
+
+        installed_version=$(dbt --version | grep -oP 'installed: \K[0-9]+\.[0-9]+\.[0-9]+' | head -1 || dbt --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        echo "dbt-version=${installed_version}" >> "$GITHUB_OUTPUT"
 
     # ---- Step 3: dbt deps ----
     - name: dbt deps
