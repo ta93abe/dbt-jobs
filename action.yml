@@ -290,7 +290,7 @@ runs:
         has_state_selector = any("state:" in a for a in args)
 
         if deferral and manifest_found == "true" and has_state_selector and "--defer" not in args:
-            args += ["--defer", "--state", "./prod-manifest"]
+            args += ["--defer", "--state", os.path.abspath("./prod-manifest")]
         elif has_state_selector and manifest_found != "true":
             print("::warning::No production manifest found. Removing state: selectors and running full build.")
             args = [a for a in args if "state:" not in a]
